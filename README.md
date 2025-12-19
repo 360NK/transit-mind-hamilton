@@ -59,7 +59,16 @@ python ingest_permits.py
 
 This populates the live_permits table and updates the disruption views.
 
-**2. (Coming Soon) Start the Real-Time Engine**
+**2. Ingest Static Network (The "Foundation" Layer)**
+Download and parse the GTFS Static schedule to build the routing graph:
+
+```
+python ingest_static.py
+```
+
+This downloads google_transit.zip, creates the routes/trips/stops tables, and generates the shape_geoms polylines.
+
+**3. (Coming Soon) Start the Real-Time Engine**
 
 ```
 python ingest_realtime.py

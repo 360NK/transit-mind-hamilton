@@ -10,3 +10,9 @@ venv/
 __pycache__/
 .env
 *.db
+*.swp
+
+!sql/*.sql
+sql/._*
+sql/.DS_Store
+
