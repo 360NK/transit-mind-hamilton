@@ -1,0 +1,146 @@
+================================================================================
+TRANSIT MIND: MASTER ARCHITECTURE DOCUMENT
+================================================================================
+Project: Transit Mind (Hamilton, ON)
+Date: December 19, 2025
+Status: 
+  - Phase 1: City Data Ingestion (COMPLETE)
+  - Phase 2: Static Network Ingestion (COMPLETE)
+  - Phase 3: Intelligence Integration (COMPLETE - 112 Active Conflicts Detected)
+Database: PostgreSQL + PostGIS
+
+================================================================================
+I. THE HYBRID PIPELINE ARCHITECTURE
+================================================================================
+The system merges two distinct data lifecycles to create situational awareness:
+
+1. DYNAMIC PIPELINE (The "Live" City State)
+   - Source: 7 ArcGIS FeatureServer URLs (City of Hamilton).
+   - Pattern: ELT (Extract-Load-Transform).
+   - Frequency: High (Hourly/Daily).
+   - Storage: `live_permits` table (JSONB).
+   - Logic: UPSERT raw JSON; use SQL Views to parse on-the-fly.
+
+2. STATIC PIPELINE (The "Base" Network)
+   - Source: google_transit.zip (Hamilton Street Railway GTFS).
+   - Pattern: ETL (Extract-Transform-Load).
+   - Frequency: Low (Static Schedule).
+   - Storage: Relational Tables (`routes`, `stops`, `trips`, `shape_geoms`).
+   - Logic: Defines the physical graph of the transit network.
+
+================================================================================
+II. DYNAMIC DATA SOURCES (CITY PERMITS)
+================================================================================
+These inputs determine "Friction" and "Blockages" in the graph.
+
+--- ACTIVE LAYERS (Views Built) ---
+
+1. CAPITAL PROJECTS (View: `vw_capital_projects`)
+   - Source Layer: `Capital_Projects`
+   - Impact: Strategic (Long-term schedule buffer).
+   - Routing Action: Add +5-10 min buffer.
+
+2. UTILITY CONSENTS (View: `vw_utility_permits`)
+   - Source Layer: `Utility_Consent`
+   - Impact: Friction (Rough pavement/Lane shifts).
+   - Routing Action: Flag as "Slow Zone."
+
+3. ROAD CLOSURES (View: `vw_road_closures`)
+   - Source Layer: `Closures`
+   - Impact: HARD BLOCK.
+   - Routing Action: COST = INFINITY. Immediate Reroute.
+
+4. OCCUPANCY PERMITS (View: `vw_occupancy_permits`)
+   - Source Layer: `Occupancy`
+   - Impact: Bottleneck.
+   - Routing Action: Critical check for `LRT` flag.
+
+================================================================================
+III. DATABASE SCHEMA: DYNAMIC (THE "LAKE")
+================================================================================
+
+TABLE: public.live_permits
+--------------------------------------------------------------------------------
+| Column       | Type                     | Description                        |
+|--------------|--------------------------|------------------------------------|
+| id           | integer (PK)             | Internal ID.                       |
+| source_layer | varchar(50)              | Tag (e.g., 'Capital_Projects').    |
+| metadata     | jsonb                    | The raw City JSON response.        |
+| geom         | geometry(Geometry, 4326) | Spatial Point/Line/Polygon.        |
+| start_time   | timestamptz              | Cached start time.                 |
+| end_time     | timestamptz              | Cached end time.                   |
+| description  | text                     | Human-readable summary.            |
+--------------------------------------------------------------------------------
+
+================================================================================
+IV. DATABASE SCHEMA: STATIC (THE "NETWORK")
+================================================================================
+Source: `google_transit.zip` (Ingested).
+
+TABLE: public.routes
+--------------------------------------------------------------------------------
+| Column           | Type      | Description                        |
+|------------------|-----------|------------------------------------|
+| route_id         | varchar   | System ID (e.g., "1").             |
+| route_short_name | varchar   | Bus Number (e.g., "10").           |
+| route_long_name  | varchar   | Bus Name (e.g., "B-LINE").         |
+
+TABLE: public.stops
+--------------------------------------------------------------------------------
+| Column      | Type                     | Description                        |
+|-------------|--------------------------|------------------------------------|
+| stop_id     | varchar                  | System ID.                         |
+| stop_name   | varchar                  | Name (e.g., "Main at John").       |
+| geom        | geometry(Geometry, 4326) | PostGIS Point.                     |
+
+TABLE: public.shape_geoms
+--------------------------------------------------------------------------------
+*CRITICAL TABLE* - The physical polyline of the bus path.
+| Column      | Type                     | Description                        |
+|-------------|--------------------------|------------------------------------|
+| shape_id    | varchar                  | Links to trips.                    |
+| geom        | geometry(Geometry, 4326) | The physical line on the map.      |
+
+TABLE: public.trips
+--------------------------------------------------------------------------------
+| Column      | Type      | Description                        |
+|-------------|-----------|------------------------------------|
+| trip_id     | varchar   | Unique Run ID.                     |
+| route_id    | varchar   | Links to routes.                   |
+| shape_id    | varchar   | Links to shape_geoms.              |
+
+================================================================================
+V. INTELLIGENCE LAYER (SQL VIEWS)
+================================================================================
+
+VIEW: vw_all_disruptions
+--------------------------------------------------------------------------------
+The Master Interface. Stacks all 4 dynamic layers.
+
+Schema:
+1. `id` (uuid)
+2. `disruption_type` (text)
+3. `status` (text)
+4. `description` (text)
+5. `start_time` / `end_time` (timestamptz)
+6. `geom` (geometry)
+
+================================================================================
+VI. CRITICAL INTEGRATION QUERIES
+================================================================================
+
+1. ROUTE INTERSECTION (THE "MAGIC QUERY")
+   "Find any bus route currently intersecting a disruption."
+   Logic: Uses `ST_DWithin` with a 15-meter buffer to account for road width.
+   
+   SELECT 
+     r.route_short_name, 
+     r.route_long_name,
+     d.disruption_type,
+     d.description
+   FROM routes r
+   JOIN trips t ON r.route_id = t.route_id
+   JOIN shape_geoms s ON t.shape_id = s.shape_id
+   JOIN vw_all_disruptions d ON ST_DWithin(s.geom, d.geom, 0.00015)
+   WHERE d.end_time > NOW()
+   GROUP BY r.route_short_name, r.route_long_name, d.disruption_type, d.description;

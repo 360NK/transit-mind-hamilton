@@ -1,0 +1,12 @@
+*.sql
+*.dump
+*.backup
+google_transit.zip
+*.log
+._*
+.DS_Store
+data/
+venv/
+__pycache__/
+.env
+*.db
