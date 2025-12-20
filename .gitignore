@@ -12,7 +12,4 @@ __pycache__/
 *.db
 *.swp
 
-!sql/*.sql
-sql/._*
-sql/.DS_Store
-
+!database/schema.sql
