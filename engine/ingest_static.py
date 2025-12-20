@@ -6,7 +6,8 @@ import csv
 import psycopg2
 from dotenv import load_dotenv
 
-load_dotenv()
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(base_dir, '.env'))
 
 # HSR Static GTFS URL
 GTFS_URL = "https://opendata.hamilton.ca/GTFS-Static/google_transit.zip"

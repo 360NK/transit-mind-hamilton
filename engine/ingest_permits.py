@@ -6,7 +6,8 @@ import json
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(base_dir, '.env'))
 
 # --- 1. CONFIGURATION ---
 DB_PARAMS = {
