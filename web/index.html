@@ -64,56 +64,91 @@
 
       async function renderLayers() {
         try {
-          const response = await fetch("http://127.0.0.1:8000/busses")
-          const data = await response.json()
+          // 1. Fetch Cleaned Data
+          const busResp = await fetch("http://127.0.0.1:8000/busses")
+          const busData = await busResp.json()
 
-          // --- ADD THIS DEBUG LINE ---
-          console.log("RAW API DATA:", data)
-          // ---------------------------
-          if (!data || !data.features) {
-            console.warn(
-              "API returned valid JSON, but no 'features' array found."
-            )
-            document.getElementById("status").innerText = "NO BUS DATA"
-            return // Stop here to prevent the crash
-          }
+          const conflictResp = await fetch("http://127.0.0.1:8000/conflicts")
+          const conflictData = await conflictResp.json()
 
+          // UI Update
+          const count = busData.features ? busData.features.length : 0
           document.getElementById(
             "status"
-          ).innerText = `Tracking ${data.features.length} vehicles`
+          ).innerText = `LIVE: Tracking ${count} Vehicles`
 
-          const busLayer = new GeoJsonLayer({
-            id: "busses",
-            data: data, // Pass the GeoJSON directly
+          // -------------------------------------------
+          // LAYER 1: ROUTE TRACKS (The "White Lines")
+          // -------------------------------------------
+          // We extract the route_geometry from the bus properties to create a new dataset
+          const routeFeatures = busData.features
+            .filter((f) => f.properties.route_geometry) // Only if route exists
+            .map((f) => ({
+              type: "Feature",
+              geometry: f.properties.route_geometry,
+              properties: { route_id: f.properties.route_id },
+            }))
 
-            // Visual Properties
-            filled: true,
-            pointRadiusMinPixels: 5,
-            pointRadiusScale: 2,
-            getPointRadius: 10,
-            getFillColor: (d) => {
-              // Logic: If speed is 0, make it Red. If moving, make it Green.
-              const speed = d.properties.speed
-              return speed === 0 ? [200, 0, 0] : [0, 255, 100]
-            },
-
-            // Interaction
-            pickable: true,
-            autoHighlight: true,
-            onClick: (info) => console.log(info.object.properties),
+          const trackLayer = new GeoJsonLayer({
+            id: "tracks",
+            data: { type: "FeatureCollection", features: routeFeatures },
+            stroked: true,
+            getLineColor: [100, 100, 100, 150], // Grey, semi-transparent
+            getLineWidth: 20,
+            pickable: false,
           })
 
-          deckgl.setProps({ layers: [busLayer] })
+          // -------------------------------------------
+          // LAYER 2: CONFLICTS (The "Pothole")
+          // -------------------------------------------
+          const conflictLayer = new GeoJsonLayer({
+            id: "conflicts",
+            data: conflictData,
+            filled: true,
+            stroked: true,
+            getFillColor: [255, 0, 0, 100], // Red, transparent
+            getLineColor: [255, 0, 0, 255], // Solid Red outline
+            getLineWidth: 40,
+            pickable: true,
+          })
+
+          // -------------------------------------------
+          // LAYER 3: BUSSES (The "Dots")
+          // -------------------------------------------
+          const busLayer = new GeoJsonLayer({
+            id: "busses",
+            data: busData,
+            pointRadiusMinPixels: 4,
+            pointRadiusScale: 1,
+            getPointRadius: 20,
+            getFillColor: (d) => {
+              // If speed is 0, make it bright Red. Otherwise Neon Green.
+              return d.properties.speed === 0 ? [255, 0, 0] : [0, 255, 100]
+            },
+            pickable: true,
+            onClick: (info) =>
+              alert(
+                `Bus: ${info.object.properties.vehicle_id}\nRoute: ${info.object.properties.route_id}`
+              ),
+          })
+
+          // Render Order: Tracks (Bottom) -> Conflicts -> Busses (Top)
+          deckgl.setProps({
+            layers: [trackLayer, conflictLayer, busLayer],
+          })
         } catch (err) {
-          console.error("API Error:", err)
-          document.getElementById("status").innerText = "SYSTEM OFFLINE"
+          console.error("Render Error:", err)
+          document.getElementById("status").innerText = "SYSTEM ERROR"
           document.getElementById("status").style.color = "red"
         }
       }
 
-      renderLayers()
+      async function startLiveMap() {
+        await renderLayers() // Wait for this to finish
+        setTimeout(startLiveMap, 5000) // THEN wait 5 seconds before trying again
+      }
 
-      setInterval(renderLayers, 2000)
+      startLiveMap()
     </script>
   </body>
 </html>

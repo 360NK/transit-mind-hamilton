@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict QjchuOiYPXZS2doxxSaufZWoKNF2W0raPw82p9xzReAFDaetlCHxCmY4so5axVd
+\restrict r0aPQALAmUgR638gnO7eQ2KPmQmcOfVZhhcOoVY8uNqj7MnDMO5Cl5mQ6HuN03p
 
 -- Dumped from database version 17.6 (Postgres.app)
 -- Dumped by pg_dump version 17.6 (Postgres.app)
@@ -76,6 +76,47 @@ ALTER SEQUENCE public.live_permits_id_seq OWNER TO kashy;
 --
 
 ALTER SEQUENCE public.live_permits_id_seq OWNED BY public.live_permits.id;
+
+
+--
+-- Name: live_vehicle_positions; Type: TABLE; Schema: public; Owner: kashy
+--
+
+CREATE TABLE public.live_vehicle_positions (
+    id bigint NOT NULL,
+    vehicle_id character varying(50),
+    trip_id character varying(100),
+    route_id character varying(50),
+    latitude double precision,
+    longitude double precision,
+    bearing double precision,
+    speed double precision,
+    "timestamp" timestamp with time zone,
+    geom public.geometry(Point,4326)
+);
+
+
+ALTER TABLE public.live_vehicle_positions OWNER TO kashy;
+
+--
+-- Name: live_vehicle_positions_id_seq; Type: SEQUENCE; Schema: public; Owner: kashy
+--
+
+CREATE SEQUENCE public.live_vehicle_positions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.live_vehicle_positions_id_seq OWNER TO kashy;
+
+--
+-- Name: live_vehicle_positions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: kashy
+--
+
+ALTER SEQUENCE public.live_vehicle_positions_id_seq OWNED BY public.live_vehicle_positions.id;
 
 
 --
@@ -330,6 +371,13 @@ ALTER TABLE ONLY public.live_permits ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: live_vehicle_positions id; Type: DEFAULT; Schema: public; Owner: kashy
+--
+
+ALTER TABLE ONLY public.live_vehicle_positions ALTER COLUMN id SET DEFAULT nextval('public.live_vehicle_positions_id_seq'::regclass);
+
+
+--
 -- Name: live_permits live_permits_permit_id_key; Type: CONSTRAINT; Schema: public; Owner: kashy
 --
 
@@ -343,6 +391,14 @@ ALTER TABLE ONLY public.live_permits
 
 ALTER TABLE ONLY public.live_permits
     ADD CONSTRAINT live_permits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: live_vehicle_positions live_vehicle_positions_pkey; Type: CONSTRAINT; Schema: public; Owner: kashy
+--
+
+ALTER TABLE ONLY public.live_vehicle_positions
+    ADD CONSTRAINT live_vehicle_positions_pkey PRIMARY KEY (id);
 
 
 --
@@ -405,8 +461,22 @@ CREATE INDEX idx_stop_times_trip_id ON public.stop_times USING btree (trip_id);
 
 
 --
+-- Name: idx_vehicle_pos_geom; Type: INDEX; Schema: public; Owner: kashy
+--
+
+CREATE INDEX idx_vehicle_pos_geom ON public.live_vehicle_positions USING gist (geom);
+
+
+--
+-- Name: idx_vehicle_pos_time; Type: INDEX; Schema: public; Owner: kashy
+--
+
+CREATE INDEX idx_vehicle_pos_time ON public.live_vehicle_positions USING btree ("timestamp");
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict QjchuOiYPXZS2doxxSaufZWoKNF2W0raPw82p9xzReAFDaetlCHxCmY4so5axVd
+\unrestrict r0aPQALAmUgR638gnO7eQ2KPmQmcOfVZhhcOoVY8uNqj7MnDMO5Cl5mQ6HuN03p
 
