@@ -42,11 +42,13 @@
     </div>
     <div id="container"></div>
     <script>
+      // 1. CONFIGURATION
       const MAPBOX_TOKEN =
-        "pk.eyJ1IjoidHJhbnNpdG1pbmQiLCJhIjoiY2x0eHViZzFqMDBjazJqbXF5bmd5dnc3diJ9.generic_token_placeholder"
+        "pk.eyJ1IjoiMzYwbmsiLCJhIjoiY21qbjVpY2JkMzNkNTNncHV2Mzc2bmRqYSJ9.PpeBij1HTS3VOPn3UHuAVA"
 
       const { DeckGL, GeoJsonLayer } = deck
 
+      // 2. INITIALIZE THE MAP
       const deckgl = new DeckGL({
         container: "container",
         mapStyle: "mapbox://styles/mapbox/dark-v11",
@@ -55,100 +57,108 @@
           longitude: -79.866091,
           latitude: 43.256568,
           zoom: 12,
-          pitch: 45, // Tilted 3D view
+          pitch: 45,
           bearing: 0,
         },
         controller: true,
-        layers: [], // We start empty
+        layers: [], // Start empty
       })
 
-      async function renderLayers() {
+      // 3. INITIALIZE: Fetch Static Routes ONCE (Heavy Lift)
+      async function initializeMap() {
+        console.log("Fetching static routes...")
         try {
-          // 1. Fetch Cleaned Data
-          const busResp = await fetch("http://127.0.0.1:8000/busses")
-          const busData = await busResp.json()
+          // Note: This endpoint must exist in your api.py!
+          const routeResp = await fetch("http://127.0.0.1:8000/static/routes")
+          const routeData = await routeResp.json()
 
-          const conflictResp = await fetch("http://127.0.0.1:8000/conflicts")
-          const conflictData = await conflictResp.json()
-
-          // UI Update
-          const count = busData.features ? busData.features.length : 0
-          document.getElementById(
-            "status"
-          ).innerText = `LIVE: Tracking ${count} Vehicles`
-
-          // -------------------------------------------
-          // LAYER 1: ROUTE TRACKS (The "White Lines")
-          // -------------------------------------------
-          // We extract the route_geometry from the bus properties to create a new dataset
-          const routeFeatures = busData.features
-            .filter((f) => f.properties.route_geometry) // Only if route exists
-            .map((f) => ({
-              type: "Feature",
-              geometry: f.properties.route_geometry,
-              properties: { route_id: f.properties.route_id },
-            }))
-
-          const trackLayer = new GeoJsonLayer({
-            id: "tracks",
-            data: { type: "FeatureCollection", features: routeFeatures },
+          // Create the Route Layer (Blue Lines)
+          // We save this to 'window' so we can re-use it every 5 seconds without re-fetching
+          window.routeLayer = new GeoJsonLayer({
+            id: "routes",
+            data: routeData,
             stroked: true,
-            getLineColor: [100, 100, 100, 150], // Grey, semi-transparent
+            filled: false,
+            getLineColor: [0, 120, 255, 80], // Blue, semi-transparent
             getLineWidth: 20,
             pickable: false,
           })
 
-          // -------------------------------------------
-          // LAYER 2: CONFLICTS (The "Pothole")
-          // -------------------------------------------
+          // Now that static data is ready, start the live loop
+          startLiveMap()
+        } catch (e) {
+          console.error("Static Route Error (Is API running?):", e)
+          document.getElementById("status").innerText =
+            "API ERROR - CHECK CONSOLE"
+          document.getElementById("status").style.color = "red"
+        }
+      }
+
+      // 4. RENDER: Fetch Live Dots & Conflicts (Lightweight)
+      async function renderLayers() {
+        try {
+          // Fetch both live endpoints in parallel
+          const [busResp, conflictResp] = await Promise.all([
+            fetch("http://127.0.0.1:8000/live/buses"),
+            fetch("http://127.0.0.1:8000/conflicts"),
+          ])
+
+          const busData = await busResp.json()
+          const conflictData = await conflictResp.json()
+
+          // UI Update
+          if (busData.features) {
+            document.getElementById(
+              "status"
+            ).innerText = `LIVE: Tracking ${busData.features.length} Vehicles`
+          }
+
+          // LAYER A: Conflicts (Red Zones)
           const conflictLayer = new GeoJsonLayer({
             id: "conflicts",
             data: conflictData,
             filled: true,
             stroked: true,
-            getFillColor: [255, 0, 0, 100], // Red, transparent
-            getLineColor: [255, 0, 0, 255], // Solid Red outline
+            getFillColor: [255, 0, 0, 100], // Red transparent
+            getLineColor: [255, 0, 0, 255], // Red solid outline
             getLineWidth: 40,
             pickable: true,
+            onClick: (info) => console.log("CONFLICT:", info.object.properties),
           })
 
-          // -------------------------------------------
-          // LAYER 3: BUSSES (The "Dots")
-          // -------------------------------------------
+          // LAYER B: Live Buses (Dots)
           const busLayer = new GeoJsonLayer({
-            id: "busses",
+            id: "buses",
             data: busData,
             pointRadiusMinPixels: 4,
-            pointRadiusScale: 1,
-            getPointRadius: 20,
-            getFillColor: (d) => {
-              // If speed is 0, make it bright Red. Otherwise Neon Green.
-              return d.properties.speed === 0 ? [255, 0, 0] : [0, 255, 100]
-            },
+            getPointRadius: 15,
+            // Green if moving, Red if stopped
+            getFillColor: (d) =>
+              d.properties.speed === 0 ? [255, 0, 0] : [0, 255, 100],
             pickable: true,
-            onClick: (info) =>
-              alert(
-                `Bus: ${info.object.properties.vehicle_id}\nRoute: ${info.object.properties.route_id}`
-              ),
+            // Rotate the arrow based on bearing
+            getAngle: (d) => -d.properties.bearing + 90,
+            onClick: (info) => console.log("BUS:", info.object.properties),
           })
 
-          // Render Order: Tracks (Bottom) -> Conflicts -> Busses (Top)
-          deckgl.setProps({
-            layers: [trackLayer, conflictLayer, busLayer],
-          })
-        } catch (err) {
-          console.error("Render Error:", err)
-          document.getElementById("status").innerText = "SYSTEM ERROR"
-          document.getElementById("status").style.color = "red"
+          // Combine Layers: Routes (Bottom) -> Conflicts -> Buses (Top)
+          const layers = [conflictLayer, busLayer]
+          if (window.routeLayer) layers.unshift(window.routeLayer)
+
+          deckgl.setProps({ layers: layers })
+        } catch (e) {
+          console.error("Render Loop Error:", e)
         }
       }
 
+      // 5. THE LOOP (Recursive)
       async function startLiveMap() {
-        await renderLayers() // Wait for this to finish
-        setTimeout(startLiveMap, 5000) // THEN wait 5 seconds before trying again
+        await renderLayers() // Wait for completion
+        setTimeout(startLiveMap, 5000) // Wait 5s, then run again
       }
 
-      startLiveMap()
+      // 6. KICKOFF
+      initializeMap()
     </script>
   </body>
 </html>

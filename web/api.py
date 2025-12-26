@@ -25,41 +25,63 @@ async def get_db_connection():
         port=os.getenv("DB_PORT", "5432")
     )
 
-@app.get("/busses")
-async def get_busses():
+@app.get("/static/routes")
+async def get_static_routes():
     conn = await get_db_connection()
     try:
-        # 1. DISTINCT ON (vehicle_id): Removes the "History Trails" (The Snake Effect)
-        # 2. JOIN shape_geoms: Gets the "White Line" track for the bus
+        # Groups shapes by route so we get one line per route
         query = """
-            WITH latest_positions AS (
-                SELECT DISTINCT ON (vehicle_id)
-                    vp.vehicle_id,
-                    vp.route_id,
-                    vp.speed,
-                    vp.geom,
-                    sg.geom as route_line  -- The Route Shape
-                FROM live_vehicle_positions vp
-                LEFT JOIN trips t ON vp.trip_id = t.trip_id
-                LEFT JOIN shape_geoms sg ON t.shape_id = sg.shape_id
-                ORDER BY vp.vehicle_id, vp.id DESC -- Only keep the newest ID per bus
-            )
             SELECT json_build_object(
                 'type', 'FeatureCollection',
                 'features', COALESCE(json_agg(
                     json_build_object(
                         'type', 'Feature',
-                        'geometry', ST_AsGeoJSON(t.geom)::json, -- The Bus Dot
+                        'geometry', ST_AsGeoJSON(sg.geom)::json,
                         'properties', json_build_object(
-                            'vehicle_id', t.vehicle_id,
-                            'route_id', t.route_id,
-                            'speed', t.speed,
-                            'route_geometry', ST_AsGeoJSON(t.route_line)::json -- The Track Line
+                            'route_id', r.route_id,
+                            'route_name', r.route_short_name,
+                            'route_color', r.route_color,
+                            'route_text_color', r.route_text_color
                         )
                     )
                 ), '[]'::json)
             )
-            FROM latest_positions t;
+            FROM shape_geoms sg
+            JOIN trips t ON sg.shape_id = t.shape_id
+            JOIN routes r ON t.route_id = r.route_id
+            GROUP BY r.route_id, r.route_short_name, r.route_color, r.route_text_color, sg.geom;
+        """
+        geojson = await conn.fetchval(query)
+        return Response(content=geojson, media_type="application/json")
+    finally:
+        await conn.close()
+
+# 2. OPTIMIZED: Get ONLY the dots (Fast!)
+@app.get("/live/buses")
+async def get_live_buses():
+    conn = await get_db_connection()
+    try:
+        query = """
+            SELECT json_build_object(
+                'type', 'FeatureCollection',
+                'features', COALESCE(json_agg(
+                    json_build_object(
+                        'type', 'Feature',
+                        'geometry', ST_AsGeoJSON(geom)::json,
+                        'properties', json_build_object(
+                            'vehicle_id', vehicle_id,
+                            'route_id', route_id,
+                            'speed', speed,
+                            'bearing', bearing 
+                        )
+                    )
+                ), '[]'::json)
+            )
+            FROM (
+                SELECT DISTINCT ON (vehicle_id) *
+                FROM live_vehicle_positions
+                ORDER BY vehicle_id, timestamp DESC
+            ) t;
         """
         geojson = await conn.fetchval(query)
         return Response(content=geojson, media_type="application/json")
