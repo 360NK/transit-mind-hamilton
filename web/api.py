@@ -29,7 +29,6 @@ async def get_db_connection():
 async def get_static_routes():
     conn = await get_db_connection()
     try:
-        # Groups shapes by route so we get one line per route
         query = """
             SELECT json_build_object(
                 'type', 'FeatureCollection',
@@ -56,9 +55,8 @@ async def get_static_routes():
     finally:
         await conn.close()
 
-# 2. OPTIMIZED: Get ONLY the dots (Fast!)
-@app.get("/live/buses")
-async def get_live_buses():
+@app.get("/live/busses")
+async def get_live_busses():
     conn = await get_db_connection()
     try:
         query = """
@@ -72,7 +70,7 @@ async def get_live_buses():
                             'vehicle_id', vehicle_id,
                             'route_id', route_id,
                             'speed', speed,
-                            'bearing', bearing 
+                            'bearing', bearing
                         )
                     )
                 ), '[]'::json)
@@ -88,6 +86,7 @@ async def get_live_buses():
     finally:
         await conn.close()
 
+# 3. CONFLICTS
 @app.get("/conflicts")
 async def get_conflicts():
     conn = await get_db_connection()
@@ -104,7 +103,6 @@ async def get_conflicts():
             ) t;
         """
         geojson = await conn.fetchval(query)
-        # FIX: Return raw pre-formatted JSON
         return Response(content=geojson, media_type="application/json")
     finally:
         await conn.close()

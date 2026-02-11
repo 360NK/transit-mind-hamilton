@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <title>TransitMind: Hamilton</title>
@@ -61,18 +61,18 @@
           bearing: 0,
         },
         controller: true,
-        layers: [], // Start empty
+        layers: [],
       })
 
-      // 3. INITIALIZE: Fetch Static Routes ONCE (Heavy Lift)
+      // 3. INITIALIZE: Fetch Static Routes ONCE
       async function initializeMap() {
         console.log("Fetching static routes...")
         try {
-          // Note: This endpoint must exist in your api.py!
+          // Note: This endpoint must be in api.py!
           const routeResp = await fetch("http://127.0.0.1:8000/static/routes")
           const routeData = await routeResp.json()
 
-          // Create the Route Layer (Blue Lines)
+          // Create the Route Layer
           // We save this to 'window' so we can re-use it every 5 seconds without re-fetching
           window.routeLayer = new GeoJsonLayer({
             id: "routes",
@@ -84,7 +84,6 @@
             pickable: false,
           })
 
-          // Now that static data is ready, start the live loop
           startLiveMap()
         } catch (e) {
           console.error("Static Route Error (Is API running?):", e)
@@ -94,7 +93,7 @@
         }
       }
 
-      // 4. RENDER: Fetch Live Dots & Conflicts (Lightweight)
+      // 4. RENDER: Fetch Live Dots & Conflicts
       async function renderLayers() {
         try {
           // Fetch both live endpoints in parallel
@@ -108,9 +107,8 @@
 
           // UI Update
           if (busData.features) {
-            document.getElementById(
-              "status"
-            ).innerText = `LIVE: Tracking ${busData.features.length} Vehicles`
+            document.getElementById("status").innerText =
+              `LIVE: Tracking ${busData.features.length} Vehicles`
           }
 
           // LAYER A: Conflicts (Red Zones)
@@ -153,8 +151,8 @@
 
       // 5. THE LOOP (Recursive)
       async function startLiveMap() {
-        await renderLayers() // Wait for completion
-        setTimeout(startLiveMap, 5000) // Wait 5s, then run again
+        await renderLayers()
+        setTimeout(startLiveMap, 5000)
       }
 
       // 6. KICKOFF

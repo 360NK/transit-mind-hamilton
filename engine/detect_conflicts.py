@@ -134,20 +134,23 @@ def detect_conflicts():
         print(f"--------------------------------------------------------------------------------")
         
         if not results:
-            print("✅ SYSTEM NOMINAL. No critical conflicts detected.")
+            print("SYSTEM NOMINAL. No critical conflicts detected.")
         
         for row in results:
             alert_type, target, desc, metric = row
-            # Truncate long descriptions
             desc_short = (desc[:40] + '..') if desc and len(desc) > 40 else str(desc)
             
-            # Color coding
             color = "\033[97m" # White
             if alert_type == "HARD_BLOCK": color = "\033[91m" # Red
             elif alert_type == "LIVE_IMPACT": color = "\033[93m" # Yellow
             elif alert_type == "STOP_CLOSED": color = "\033[96m" # Cyan
             
             print(f"{color}{alert_type:<15} | {target:<15} | {metric:<12} | {desc_short}\033[0m")
+            cur.execute("""
+                INSERT INTO conflict_history (vehicle_id, route_id, permit_id, conflict_type, description)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (target_vehicle_id, target_route_id, permit_id, alert_type, desc))
+            conn.commit()
 
         print(f"================================================================================")
         conn.close()

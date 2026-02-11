@@ -24,7 +24,7 @@ def get_db_connection():
     try:
         return psycopg2.connect(**DB_PARAMS)
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"Database connection failed: {e}")
         return None
     
 def initialize_schema(conn):
@@ -53,14 +53,14 @@ def initialize_schema(conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_vehicle_pos_geom ON live_vehicle_positions USING GIST(geom);")
 
     conn.commit()
-    print("✅ Real-Time Schema Ready.")
+    print("Real-Time Schema Ready.")
 
 def fetch_and_process(conn):
-    print(f"📡 Fetching live data...")
+    print(f"Fetching live data...")
     try:
         response = requests.get(FEED_URL)
         if response.status_code != 200:
-            print(f"❌ Failed to fetch feed: HTTP {response.status_code}")
+            print(f"Failed to fetch feed: HTTP {response.status_code}")
             return
         
         feed = gtfs_realtime_pb2.FeedMessage()
@@ -100,33 +100,30 @@ def fetch_and_process(conn):
 
         conn.commit()
         cur.close()
-        print(f"✅ Inserted {count} vehicle positions at {datetime.datetime.now().strftime('%H:%M:%S')}")
+        print(f"Inserted {count} vehicle positions at {datetime.datetime.now().strftime('%H:%M:%S')}")
               
     except Exception as e:
-        print(f"❌ Error processing feed: {e}")
+        print(f"Error processing feed: {e}")
         conn.rollback()
 
 if __name__ == "__main__":
-    print("🚌 Starting TransitMind Pulse Engine...")
+    print("Starting TransitMind Pulse Engine...")
     print("Press Ctrl+C to stop.")
     
-    # 1. Connect & Init
     conn = get_db_connection()
     if conn:
         initialize_schema(conn)
-        conn.close() # Close init connection
+        conn.close()
 
-    # 2. Start Loop
     try:
         while True:
-            # Re-connect every loop to handle timeouts gracefully
+            
             loop_conn = get_db_connection()
             if loop_conn:
                 fetch_and_process(loop_conn)
                 loop_conn.close()
             
-            # HSR updates every ~30 seconds
             time.sleep(30)
             
     except KeyboardInterrupt:
-        print("\n🛑 Ingestion stopped by user.")
+        print("\n Ingestion stopped.")

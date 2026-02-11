@@ -100,9 +100,9 @@ def init_static_schema(cur):
 
 def import_csv_to_table(cur, zip_file, filename, table_name, columns):
     """Generic CSV loader"""
-    print(f"📥 Loading {table_name}...")
+    print(f" Loading {table_name}...")
     if filename not in zip_file.namelist():
-        print(f"⚠️  {filename} not found in zip. Skipping.")
+        print(f"{filename} not found in zip. Skipping.")
         return
 
     with zip_file.open(filename) as f:
@@ -124,10 +124,10 @@ def import_csv_to_table(cur, zip_file, filename, table_name, columns):
             if count % 10000 == 0:
                 print(f"   - Processed {count} rows...")
         
-    print(f"✅ {table_name} complete ({count} rows).")
+    print(f"{table_name} complete ({count} rows).")
 
 def generate_geometries(cur):
-    print("🌍 Generating Spatial Geometries...")
+    print("Generating Spatial Geometries...")
     
     # 1. Update Stops Geometry
     cur.execute("""
@@ -137,7 +137,7 @@ def generate_geometries(cur):
     """)
     print("   - Stops geometry updated.")
 
-    # 2. Build Shape Polylines (Heavy Query)
+    # 2. Build Shape Polylines
     print("   - Building Shape Polylines (This might take a moment)...")
     cur.execute("TRUNCATE TABLE shape_geoms;") # Clear old data
     cur.execute("""
@@ -151,10 +151,10 @@ def generate_geometries(cur):
     print("   - Shape Polylines created.")
 
 def ingest_static():
-    print(f"⬇️  Downloading GTFS Static from {GTFS_URL}...")
+    print(f"Downloading GTFS Static from {GTFS_URL}...")
     resp = requests.get(GTFS_URL)
     if resp.status_code != 200:
-        print("❌ Failed to download file.")
+        print("Failed to download file.")
         return
 
     with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
@@ -186,7 +186,7 @@ def ingest_static():
         conn.commit()
         cur.close()
         conn.close()
-        print("🎉 Static GTFS Ingestion Complete!")
+        print("Static GTFS Ingestion Complete!")
 
 if __name__ == "__main__":
     ingest_static()

@@ -1,4 +1,4 @@
-# TransitMind: Hamilton 🚍
+# TransitMind: Hamilton
 
 **A Diagnostic Digital Twin for Public Transit**
 
@@ -7,7 +7,7 @@ TransitMind is a real-time intelligence engine that correlates transit delays wi
 ![Status](<https://img.shields.io/badge/Status-Phase%202%20(Integration)-blue>)
 ![Stack](https://img.shields.io/badge/Stack-PostGIS%20%7C%20FastAPI%20%7C%20React-green)
 
-## 🏗 System Architecture
+## System Architecture
 
 The system operates on a **Hybrid Pipeline** merging three distinct data layers:
 
@@ -17,7 +17,7 @@ The system operates on a **Hybrid Pipeline** merging three distinct data layers:
 
 > See [ARCHITECTURE.md](ARCHITECTURE.md) for the detailed engineering design and decision logs.
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -74,7 +74,7 @@ This downloads google_transit.zip, creates the routes/trips/stops tables, and ge
 python ingest_realtime.py
 ```
 
-### 📂 Data Sources & Licensing
+### Data Sources & Licensing
 
 Code: MIT License. See LICENSE for details.
 

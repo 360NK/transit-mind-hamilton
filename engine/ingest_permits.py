@@ -41,9 +41,7 @@ def initialize_schema(conn):
     Recreates the exact table structure and Views from your Architecture Doc.
     """
     cur = conn.cursor()
-    print("🔨 Verifying Schema...")
 
-    # 1. Create the Main Table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS live_permits (
             id SERIAL PRIMARY KEY,
@@ -62,7 +60,6 @@ def initialize_schema(conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_live_permits_geom ON live_permits USING GIST(geom);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_live_permits_time ON live_permits (start_time, end_time);")
 
-    # 3. Create Views (Based on your schema_dump.sql)
     print("   - Updating Views...")
     
     # Capital Projects View
@@ -130,7 +127,7 @@ def initialize_schema(conn):
     """)
 
     conn.commit()
-    print("✅ Schema verification complete.")
+    print("complete.")
 
 def clean_time(epoch_ms):
     if not epoch_ms: return None
